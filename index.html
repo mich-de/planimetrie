@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tavolo da Disegno — pianificatore di planimetrie 2D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='4' width='24' height='24' fill='%23EFEAE0' stroke='%23E8552B' stroke-width='3'/%3E%3Cpath d='M10 12h12M10 17h12M10 22h12' stroke='%2315171B' stroke-width='2.5'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<!-- ============ sprite icone ============ -->
+<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <g id="i-select"><path d="M6 3l13 7.5-5.6 1.5L11 20z"/></g>
+    <g id="i-wall"><path d="M4 9h16v6H4z"/><path d="M9 9v6M15 9v6"/></g>
+    <g id="i-room"><path d="M4 6h16v12H4z" stroke-dasharray="3 2.5"/></g>
+    <g id="i-ruler"><path d="M3 15.5L15.5 3 21 8.5 8.5 21z"/><path d="M7 11.5l2 2M11 7.5l2 2"/></g>
+    <g id="i-text"><path d="M5 7V4.5h14V7M12 4.5v15M9 19.5h6"/></g>
+    <g id="i-door"><path d="M5.5 20h4M5.5 20V4.5h8.5v15M14 12a8.5 8.5 0 0 1-8.5 8"/><path d="M12.5 12.5v.01"/></g>
+    <g id="i-window"><path d="M4 8h16v8H4z"/><path d="M12 8v8M4 12h16"/></g>
+    <g id="i-plug"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z"/><path d="M9.2 10.5v.01M14.8 10.5v.01M12 16v-3.5"/></g>
+    <g id="i-switch"><path d="M6 4.5h12v15H6z"/><path d="M12 16.5v-4.2M9.6 12.3a3.4 3.4 0 0 1 4.8 0"/></g>
+    <g id="i-lamp"><path d="M12 3.5v3.2M5.8 14.5L12 6.7l6.2 7.8z"/><path d="M8.8 14.5h6.4M12 14.5v5.5M9.8 20h4.4"/></g>
+    <g id="i-furn"><path d="M6.5 12.5V8.8a1.8 1.8 0 0 1 3.6 0v3.7M13.9 12.5V8.8a1.8 1.8 0 0 1 3.6 0v3.7M4.5 12.5h15v5.2h-15z"/><path d="M6.5 17.7v2M17.5 17.7v2"/></g>
+    <g id="i-pan"><path d="M12 3.5v17M3.5 12h17"/><path d="M12 3.5l-2.6 2.6M12 3.5l2.6 2.6M12 20.5l-2.6-2.6M12 20.5l2.6-2.6M3.5 12l2.6-2.6M3.5 12l2.6 2.6M20.5 12l-2.6-2.6M20.5 12l-2.6 2.6"/></g>
+    <g id="i-save"><path d="M5 4.5h11l3.5 3.5v11.5H5z"/><path d="M8.5 4.5v5h6.5M8.5 19.5v-6h7v6"/></g>
+    <g id="i-download"><path d="M12 4v10.5M8 11l4 4 4-4M4.5 19.5h15"/></g>
+    <g id="i-upload"><path d="M12 20V9.5M8 13l4-4 4 4M4.5 4.5h15"/></g>
+    <g id="i-image"><path d="M4 5.5h16v13H4z"/><path d="M4 15l4.5-4.5 3.5 3.5 3-3 5 5"/><path d="M9 9.5a1.1 1.1 0 1 1-.01 0"/></g>
+    <g id="i-print"><path d="M7 8.5V4.5h10v4M5 8.5h14v7.5H5z"/><path d="M7 16h10v4H7z"/></g>
+    <g id="i-undo"><path d="M9 7.5L4.5 12 9 16.5"/><path d="M4.5 12h9.7a4.6 4.6 0 0 1 0 9.2H9"/></g>
+    <g id="i-redo"><path d="M15 7.5L19.5 12 15 16.5"/><path d="M19.5 12H9.8a4.6 4.6 0 0 0 0 9.2H15"/></g>
+    <g id="i-grid"><path d="M4 4h16v16H4z"/><path d="M4 9.3h16M4 14.6h16M9.3 4v16M14.6 4v16"/></g>
+    <g id="i-trash"><path d="M4.8 7h14.4M9.3 7V4.2h5.4V7"/><path d="M6.8 7l1 13h8.4l1-13"/></g>
+    <g id="i-magnet"><path d="M7 4.5v7a5 5 0 0 0 10 0v-7"/><path d="M7 4.5h3.5v6.8H7zM13.5 4.5H17v6.8h-3.5z"/></g>
+    <g id="i-help"><path d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.6v.4M12 17.2v.01"/></g>
+  </defs>
+</svg>
+
+<!-- ============ barra alta ============ -->
+<header id="topbar">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <h1>Tavolo<em>da Disegno</em></h1>
+  </div>
+
+  <input id="docName" class="doc-name" value="Nuovo progetto" spellcheck="false" aria-label="Nome progetto">
+
+  <nav class="actions">
+    <button id="btnUndo" class="ico" title="Annulla (Ctrl+Z)"><svg><use href="#i-undo"/></svg></button>
+    <button id="btnRedo" class="ico" title="Ripeti (Ctrl+Shift+Z)"><svg><use href="#i-redo"/></svg></button>
+    <span class="sep"></span>
+    <button id="btnSave" class="ico" title="Salva nel browser (Ctrl+S)"><svg><use href="#i-save"/></svg></button>
+    <button id="btnExport" class="ico" title="Scarica file .plan"><svg><use href="#i-download"/></svg></button>
+    <button id="btnImport" class="ico" title="Carica file .plan"><svg><use href="#i-upload"/></svg><input type="file" id="filePlan" accept=".plan,.json" hidden></button>
+    <button id="btnPng" class="ico" title="Esporta PNG"><svg><use href="#i-image"/></svg></button>
+    <button id="btnSheet" class="ico" title="Scheda tecnica A4 (PNG)"><svg><use href="#i-ruler"/></svg></button>
+    <button id="btnPrint" class="ico" title="Stampa planimetria"><svg><use href="#i-print"/></svg></button>
+    <span class="sep"></span>
+    <button id="btnBg" class="ico" title="Immagine di sfondo (traccia un piano)"><svg><use href="#i-image"/></svg><input type="file" id="fileBg" accept="image/*" hidden></button>
+    <button id="btnGrid" class="ico on" title="Griglia"><svg><use href="#i-grid"/></svg></button>
+    <button id="btnMagnet" class="ico on" title="Magnetismo (agganci)"><svg><use href="#i-magnet"/></svg></button>
+  </nav>
+
+  <div class="modes">
+    <button class="mode on" data-mode="2d">2D</button>
+    <button class="mode" data-mode="quote" title="Solo quote e misure">Quote</button>
+    <button class="mode" data-mode="3d" title="Vista 3D assonometrica">3D</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ colonna strumenti ============ -->
+  <aside id="tools">
+    <section class="tgroup">
+      <h2>Disegno</h2>
+      <button class="tool on" data-tool="select" title="Seleziona (V)"><svg><use href="#i-select"/></svg><span>Seleziona</span></button>
+      <button class="tool" data-tool="wall" title="Muro: clic per iniziare, clic sul primo punto per chiudere (W)"><svg><use href="#i-wall"/></svg><span>Muro</span></button>
+      <button class="tool" data-tool="room" title="Locale rettangolare (R)"><svg><use href="#i-room"/></svg><span>Locale</span></button>
+      <button class="tool" data-tool="dim" title="Quota tra due punti (Q)"><svg><use href="#i-ruler"/></svg><span>Quota</span></button>
+      <button class="tool" data-tool="text" title="Testo (T)"><svg><use href="#i-text"/></svg><span>Testo</span></button>
+    </section>
+
+    <section class="tgroup">
+      <h2>Aperture</h2>
+      <button class="tool" data-tool="door" title="Porta su un muro (D)"><svg><use href="#i-door"/></svg><span>Porta</span></button>
+      <button class="tool" data-tool="window" title="Finesta su un muro (F)"><svg><use href="#i-window"/></svg><span>Finesta</span></button>
+    </section>
+
+    <section class="tgroup">
+      <h2>Impianti</h2>
+      <button class="tool" data-tool="socket" title="Presa elettrica"><svg><use href="#i-plug"/></svg><span>Presa</span></button>
+      <button class="tool" data-tool="switch" title="Interruttore"><svg><use href="#i-switch"/></svg><span>Interr.</span></button>
+      <button class="tool" data-tool="light" title="Punto luce"><svg><use href="#i-lamp"/></svg><span>Luce</span></button>
+    </section>
+
+    <section class="tgroup">
+      <h2>Catalogo</h2>
+      <button class="tool" id="btnCatalog" title="Mobili e arredi"><svg><use href="#i-furn"/></svg><span>Mobili</span></button>
+      <button class="tool" data-tool="pan" title="Sposta la vista (barra spaziatrice)"><svg><use href="#i-pan"/></svg><span>Sposta</span></button>
+    </section>
+  </aside>
+
+  <!-- ============ tavolo ============ -->
+  <section id="stage">
+    <div id="floorbar" title="Piani: clic per passare, doppio clic per rinominare"></div>
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="gridFine" width="100" height="100" patternUnits="userSpaceOnUse">
+          <path d="M100 0H0V100" fill="none" stroke="rgba(27,29,33,.055)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+        </pattern>
+        <pattern id="gridBold" width="1000" height="1000" patternUnits="userSpaceOnUse">
+          <rect width="1000" height="1000" fill="url(#gridFine)"/>
+          <path d="M1000 0H0V1000" fill="none" stroke="rgba(27,29,33,.14)" stroke-width="1" vector-effect="non-scaling-stroke"/>
+        </pattern>
+        <pattern id="hatch" width="90" height="90" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="90" height="90" fill="#F4F2ED"/>
+          <path d="M22 0V90M67 0V90" stroke="#24262B" stroke-width="12"/>
+        </pattern>
+      </defs>
+      <g id="l-bg">
+        <rect id="paper" x="0" y="0" width="100%" height="100%" fill="#FDFCF9"/>
+        <rect id="fine" x="0" y="0" width="100%" height="100%" fill="url(#gridFine)"/>
+        <rect id="bold" x="0" y="0" width="100%" height="100%" fill="url(#gridBold)"/>
+        <g id="axis"></g>
+      </g>
+      <g id="world">
+        <g id="l-image"></g>
+        <g id="l-rooms"></g>
+        <g id="l-walls"></g>
+        <g id="l-openings"></g>
+        <g id="l-furn"></g>
+        <g id="l-points"></g>
+        <g id="l-auto"></g>
+        <g id="l-dims"></g>
+        <g id="l-text"></g>
+        <g id="l-preview"></g>
+        <g id="l-handles"></g>
+      </g>
+    </svg>
+
+    <div id="hint" class="hint hidden"></div>
+
+    <div id="zoombar">
+      <button id="zoomOut" title="Riduci">−</button>
+      <input type="range" id="zoomRange" min="2" max="200" step="1" value="10" title="Zoom">
+      <button id="zoomIn" title="Ingrandisci">+</button>
+      <button id="zoomFit" title="Adatta alla schermata">⌂</button>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+  </section>
+
+  <!-- ============ pannello destro ============ -->
+  <aside id="side">
+    <div class="tabs">
+      <button class="tab on" data-tab="props">Proprietà</button>
+      <button class="tab" data-tab="catalog">Catalogo</button>
+      <button class="tab" data-tab="stats">Riepilogo</button>
+    </div>
+
+    <div class="panel" id="panel-props">
+      <div id="propsBody" class="empty">Nessuna selezione.<br><small>Clicca un oggetto sulla tavola.</small></div>
+    </div>
+
+    <div class="panel hidden" id="panel-catalog">
+      <input type="search" id="catalogSearch" placeholder="Cerca arredo…" aria-label="Cerca arredo">
+      <div id="catalogBody"></div>
+    </div>
+
+    <div class="panel hidden" id="panel-stats">
+      <div id="statsBody"></div>
+    </div>
+  </aside>
+</main>
+
+<footer id="status">
+  <span id="statusTool" class="mono">Seleziona</span>
+  <span id="statusHint" class="hint-txt">Clic per selezionare · trascina per spostare</span>
+  <span class="grow"></span>
+  <span id="statusCoord" class="mono">x 0.00 · y 0.00 m</span>
+  <span id="statusZoom" class="mono">100%</span>
+  <span id="statusCount" class="mono">0 oggetti</span>
+</footer>
+
+<script src="js/catalog.js"></script>
+<script src="js/doc.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

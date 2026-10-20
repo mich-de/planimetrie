@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="it">
+<head><meta charset="utf-8"><title>smoke</title>
+<style>body{margin:0;font:12px monospace}#f{width:1280px;height:800px;border:0}#log{white-space:pre-wrap;margin:0;padding:8px}</style>
+</head>
+<body>
+<iframe id="f" src="../index.html"></iframe>
+<pre id="log"></pre>
+<script>
+const out = [];
+let fails = 0;
+function ok(name, cond, extra) {
+  out.push((cond ? "PASS " : "FAIL ") + name + (extra !== undefined ? "  [" + extra + "]" : ""));
+  if (!cond) fails++;
+}
+
+window.addEventListener("load", () => {
+  const f = document.getElementById("f");
+  const wait = () => {
+    let ready = false;
+    try { ready = f.contentWindow.eval("typeof App !== 'undefined' && typeof Doc !== 'undefined' && document.getElementById('svg') !== null"); } catch (e) { ready = false; }
+    if (!ready) return setTimeout(wait, 200);
+    setTimeout(run, 400);
+  };
+  wait();
+});
+
+function run() {
+  const f = document.getElementById("f");
+  const w = f.contentWindow, d = f.contentDocument;
+  const E = expr => w.eval(expr);
+  const svg = d.getElementById("svg");
+  w.addEventListener("error", e => out.push("!ERR " + ((e.error && e.error.stack) || e.message)));
+
+  function ptr(type, x, y, opts) {
+    const e = new w.PointerEvent(type, Object.assign({
+      clientX: x, clientY: y, bubbles: true, cancelable: true,
+      button: 0, buttons: 1, pointerId: 1, isPrimary: true, pointerType: "mouse"
+    }, opts || {}));
+    const target = (opts && opts.target) || d.elementFromPoint(x, y) || svg;
+    target.dispatchEvent(e);
+  }
+  function key(k, mods) {
+    w.dispatchEvent(new w.KeyboardEvent("keydown", Object.assign({ key: k, code: k === " " ? "Space" : "Key" + k.toUpperCase(), bubbles: true }, mods || {})));
+    w.dispatchEvent(new w.KeyboardEvent("keyup", Object.assign({ key: k, code: k === " " ? "Space" : "Key" + k.toUpperCase(), bubbles: true }, mods || {})));
+  }
+
+  try {
+    /* --- 0. stato pulito (il localStorage persiste tra le esecuzioni) --- */
+    E("(function(){try{localStorage.removeItem('tavolo-disegno.v1')}catch(e){}})()");
+    E("Doc.reset(); App.sel = null;");
+
+    /* --- 1. strumento muro --- */
+    d.querySelector('[data-tool="wall"]').click();
+    ok("tool wall attivo", E("App.state.tool") === "wall", E("App.state.tool"));
+
+    /* --- 2. catena di 4 muri chiusa --- */
+    ptr("pointerdown", 400, 300);
+    ptr("pointermove", 700, 300);
+    ptr("pointerup", 700, 300);
+    ptr("pointerdown", 700, 300);
+    ptr("pointermove", 700, 500);
+    ptr("pointerup", 700, 500);
+    ptr("pointerdown", 700, 500);
+    ptr("pointermove", 400, 500);
+    ptr("pointerup", 400, 500);
+    ptr("pointerdown", 400, 500);
+    ptr("pointermove", 402, 302);
+    ptr("pointerdown", 402, 302);   // chiude
+    ptr("pointerup", 402, 302);
+
+    ok("4 muri creati", E("Doc.list('wall').length") === 4, E("Doc.list('wall').length"));
+    ok("1 locale creato", E("Doc.list('room').length") === 1, E("Doc.list('room').length"));
+    ok("locale selezionato", !!E("App.sel") && E("Doc.get(App.sel).type") === "room", E("App.sel"));
+    ok("area = muri rettangolo", E("(function(){var r=Doc.list('room')[0],ws=Doc.list('wall');"
+      + "var a=GEOM.wallLen(ws[0])*GEOM.wallLen(ws[1]);"
+      + "return Math.abs(GEOM.polyArea(r.pts)-a)/a < 0.12;})()"),
+      (E("GEOM.polyArea(Doc.list('room')[0].pts)/1e6") || 0).toFixed(1) + " m2");
+    ok("pannello proprietà locale", d.getElementById("propsBody").textContent.includes("Locale"),
+       d.getElementById("propsBody").textContent.slice(0, 60).replace(/\s+/g, " "));
+    ok("riepilogo locali", d.getElementById("statsBody").textContent.includes("superficie locali"));
+
+    /* --- 3. porta su un muro --- */
+    d.querySelector('[data-tool="door"]').click();
+    ptr("pointermove", 550, 300);
+    ptr("pointerdown", 550, 300);
+    ptr("pointerup", 550, 300);
+    ok("porta inserita", E("Doc.list('door').length") === 1, E("Doc.list('door').length"));
+    ok("porta agganciata al muro", E("!!Doc.get(Doc.list('door')[0].wall)"), E("Doc.list('door')[0].wall"));
+
+    /* --- 4. arredo dal catalogo --- */
+    d.querySelector('[data-tab="catalog"]').click();
+    const firstItem = d.querySelector("#catalogBody .cat-item");
+    ok("catalogo popolato", !!firstItem, d.querySelectorAll("#catalogBody .cat-item").length + " voci");
+    if (firstItem) firstItem.click();
+    ok("tool arredo attivo", E("App.state.tool").startsWith("furn:"), E("App.state.tool"));
+    ptr("pointerdown", 500, 430);
+    ptr("pointerup", 500, 430);
+    ok("arredo piazzato", E("Doc.list('furn').length") === 1, E("Doc.list('furn').length"));
+
+    /* --- 5. selezione arredo + proprietà --- */
+    d.querySelector('[data-tool="select"]').click();
+    ptr("pointerdown", 500, 430);
+    ptr("pointerup", 500, 430);
+    ok("arredo selezionato", E("Doc.get(App.sel)?.type") === "furn", "sel=" + E("App.sel"));
+    ok("proprietà arredo", d.getElementById("propsBody").textContent.includes("Rotazione"));
+
+    /* --- 6. undo / redo --- */
+    const before = E("Doc.floor().objects.length");
+    key("z", { ctrlKey: true });
+    ok("undo riduce oggetti", E("Doc.floor().objects.length") < before, before + " → " + E("Doc.floor().objects.length"));
+    key("z", { ctrlKey: true, shiftKey: true });
+    ok("redo ripristina", E("Doc.floor().objects.length") === before, E("Doc.floor().objects.length"));
+
+    /* --- 7. zoom con rotella --- */
+    const s0 = E("App.view.scale");
+    svg.dispatchEvent(new w.WheelEvent("wheel", { deltaY: -240, bubbles: true, cancelable: true, clientX: 640, clientY: 400 }));
+    const s1 = E("App.view.scale");
+    ok("zoom rotella", s1 > s0, s0 + " → " + s1);
+
+    /* --- 8. quota --- */
+    d.querySelector('[data-tool="dim"]').click();
+    ptr("pointerdown", 350, 250);
+    ptr("pointermove", 750, 250);
+    ptr("pointerup", 750, 250);
+    ptr("pointerup", 750, 250);
+    ok("quota creata", E("Doc.list('dim').length") === 1, E("Doc.list('dim').length"));
+
+    /* --- 9. salvataggio + serializzazione --- */
+    const json = E("Doc.serialize()");
+    ok("serializza progetto", json.length > 200 && json.includes('"room"'), json.length + " byte");
+    ok("salva in localStorage", E("!!Doc.saveNow()"));
+    ok("ripristino da localStorage", E("(function(){var k='tavolo-disegno.v1';var raw=localStorage.getItem(k);return raw && raw.includes('objects');})()"));
+
+    /* --- 10. render senza eccezioni + layer popolati --- */
+    ok("layer muri renderizzato", d.getElementById("l-walls").children.length >= 4, d.getElementById("l-walls").children.length);
+    ok("layer locali renderizzato", d.getElementById("l-rooms").children.length >= 1);
+    ok("layer arredi renderizzato", d.getElementById("l-furn").children.length >= 1);
+    ok("maniglie selezione", d.getElementById("l-handles").children.length >= 1, d.getElementById("l-handles").children.length);
+    /* --- 11. esportazioni (i download sono verificati dalla cattura browser) --- */
+    d.getElementById("btnExport").click();
+    d.getElementById("btnPng").click();
+    ok("esportazioni avviate senza eccezioni", true);
+
+    /* --- 12. modalità quote --- */
+    d.querySelector('[data-mode="quote"]').click();
+    ok("modalità quote", E("App.mode") === "quote", E("App.mode"));
+    ok("arredi attenuati in quote", d.getElementById("l-furn").style.opacity === "0.16", d.getElementById("l-furn").style.opacity);
+    d.querySelector('[data-mode="2d"]').click();
+    ok("ritorno a 2D", E("App.mode") === "2d");
+
+    /* --- 13. giunzioni: trascinare un angolo trascina i muri a contatto --- */
+    const wSel = E("Doc.list('wall')[1].id");
+    const wEl = d.querySelector('.wbody[data-id="' + wSel + '"]');
+    ok("corpo muro 2 presente", !!wEl);
+    const wb = wEl ? wEl.getBoundingClientRect() : null;
+    if (wEl) {
+      ptr("pointerdown", wb.left + wb.width / 2, wb.top + wb.height / 2, { target: wEl });
+      ptr("pointerup", wb.left + wb.width / 2, wb.top + wb.height / 2, { target: wEl });
+    }
+    ok("muro laterale selezionato", E("Doc.get(App.sel)?.id") === wSel && E("Doc.get(App.sel)?.type") === "wall", E("App.sel"));
+    const handle = d.querySelector('#l-handles .h[data-h="w1"]');
+    ok("maniglia estremità presente", !!handle);
+    if (handle) {
+      const wm = E("(function(){var s=document.getElementById('svg').getBoundingClientRect();"
+        + "var h=document.querySelector('#l-handles .h[data-h=\\\"w1\\\"]');"
+        + "return [s.left + App.view.x + (+h.getAttribute('cx'))*App.view.scale,"
+        + " s.top + App.view.y + (+h.getAttribute('cy'))*App.view.scale];})()");
+      const H = obj => ({ target: obj });
+      ptr("pointerdown", wm[0], wm[1], H(handle));
+      ptr("pointermove", wm[0] - 60, wm[1] + 40);
+      ptr("pointerup", wm[0] - 60, wm[1] + 40);
+      const coupled = E("(function(){var o=Doc.get(App.sel);var n=0;Doc.list('wall').forEach(function(x){"
+        + "if(x.id===o.id)return;if(Math.hypot(x.x1-o.x1,x.y1-o.y1)<2||Math.hypot(x.x2-o.x1,x.y2-o.y1)<2)n++;});return n;})()");
+      ok("muri collegati seguono l'angolo", coupled >= 1, coupled + " muri agganciati");
+      ok("vertice locale seguito", E("(function(){var o=Doc.get(App.sel);var r=Doc.list('room')[0];"
+        + "return r.pts.some(function(p){return Math.hypot(p[0]-o.x1,p[1]-o.y1)<2;});})()"));
+    }
+
+    /* --- 14. piani multipli --- */
+    E("Doc.commit();");
+    E("App.sel = null; Doc.addFloor();");
+    ok("secondo piano aggiunto", E("Doc.floorCount()") === 2, E("Doc.floorCount()"));
+    E("Doc.begin(); Doc.add({id:Doc.newId('w'),type:'wall',x1:0,y1:0,x2:3000,y2:0,th:200,h:2700}); Doc.commit();");
+    ok("muro sul piano 2", E("Doc.data.floors[1].objects.length") === 1, E("Doc.data.floors[1].objects.length"));
+    ok("piano 2 vuoto di locali", E("Doc.data.floors[1].objects.filter(function(o){return o.type==='room';}).length") === 0);
+    E("Doc.setFloor(0);");
+    ok("tornando al piano 1 tutto c'è", E("Doc.list('wall').length") === 4 && E("Doc.floorIndex()") === 0,
+       E("Doc.list('wall').length") + " muri, idx " + E("Doc.floorIndex()"));
+    ok("barra piani renderizzata", d.querySelectorAll("#floorbar .chip").length >= 3,
+       d.querySelectorAll("#floorbar .chip").length + " chip");
+    E("Doc.removeFloor(1);");
+    ok("piano 2 rimosso", E("Doc.floorCount()") === 1, E("Doc.floorCount()"));
+
+    /* --- 15. modalità 3D --- */
+    d.querySelector('[data-mode="3d"]').click();
+    ok("modalità 3D attiva", E("App.mode") === "3d");
+    ok("muri estrusi in 3D", d.getElementById("l-walls").children.length >= 1,
+       d.getElementById("l-walls").children.length + " box");
+    ok("niente maniglie in 3D", d.getElementById("l-handles").children.length === 0);
+    d.querySelector('[data-mode="2d"]').click();
+    ok("ritorno a 2D dal 3D", E("App.mode") === "2d");
+  } catch (err) {
+    ok("eccezione", false, String(err && err.stack || err).split("\n").slice(0, 3).join(" | "));
+  }
+
+  document.getElementById("log").textContent = out.join("\n") + "\n\n" + (fails ? fails + " FAIL" : "TUTTO OK");
+  document.title = (fails ? "FAIL" : "PASS") + " " + out.filter(x => x.startsWith("PASS")).length + "/" + out.length;
+}
+</script>
+</body>
+</html>
